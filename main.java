@@ -29,12 +29,15 @@ public class main extends OpMode {
 
         // Name strings must match up with the config on the Robot Controller
         // app.
-        front_left   = hardwareMap.get(DcMotor.class, "front_left");
-        front_right  = hardwareMap.get(DcMotor.class, "front_right");
-        back_left    = hardwareMap.get(DcMotor.class, "back_left");
-        back_right   = hardwareMap.get(DcMotor.class, "back_right");
+        frontLeft  = hardwareMap.get(DcMotor.class, "frontLeft");
+        frontRight = hardwareMap.get(DcMotor.class, "frontRight");
+        backLeft   = hardwareMap.get(DcMotor.class, "backLeft");
+        backRight  = hardwareMap.get(DcMotor.class, "backRight");
         
-        conveyor   = hardwareMap.get(DcMotor.class, "conveyor");
+        conveyor     = hardwareMap.get(DcMotor.class, "conveyor");
+        outake       = hardwareMap.get(DcMotor.class, "outake");
+
+        telemetry.addData("Status", "Initialized");
     }
 
     @Override
@@ -45,6 +48,8 @@ public class main extends OpMode {
         double drive  = gamepad1.left_stick_y;
         double strafe = gamepad1.left_stick_x;
         double twist  = gamepad1.right_stick_x;
+        boolean conveyorOn = gamepad1.a;
+        boolean outakeOn = gamepad1.b;
 
         /*
          * If we had a gyro and wanted to do field-oriented control, here
@@ -97,5 +102,20 @@ public class main extends OpMode {
         front_right.setPower(speeds[1]);
         back_left.setPower(speeds[2]);
         back_right.setPower(speeds[3]);
+
+        // Conveyor control
+        if (conveyorOn) {
+            conveyor.setPower(1.0);
+        } else {
+            conveyor.setPower(0.0);
+        }
+
+        // Outake control
+        if (outakeOn) {
+            outake.setPower(1.0);
+        } else {
+            outake.setPower(0.0);
+        }
+
     }
 }
