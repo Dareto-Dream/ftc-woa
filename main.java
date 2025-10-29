@@ -9,7 +9,7 @@ import com.qualcomm.robotcore.hardware.DcMotor;
  * @author Brandon Gong
  */
 @TeleOp(name="Main Code type stuf", group="Iterative Opmode")
-public class main extends OpMode {
+public class Main extends OpMode {
 
     /*
      * The mecanum drivetrain involves four separate motors that spin in
@@ -18,11 +18,12 @@ public class main extends OpMode {
      */
 
     // declare and initialize four DcMotors.
-    private DcMotor front_left  = null;
-    private DcMotor front_right = null;
-    private DcMotor back_left   = null;
-    private DcMotor back_right  = null;
-    private DcMotor conveyor  = null;
+    private DcMotor frontLeft  = null;
+    private DcMotor frontRight = null;
+    private DcMotor backLeft   = null;
+    private DcMotor backRight  = null;
+    private DcMotor conveyor   = null;
+    private DcMotor outake     = null;
 
     @Override
     public void init() {
@@ -37,17 +38,24 @@ public class main extends OpMode {
         conveyor     = hardwareMap.get(DcMotor.class, "conveyor");
         outake       = hardwareMap.get(DcMotor.class, "outake");
 
+        frontLeft.setDirection(DcMotor.Direction.REVERSE);
+        backLeft.setDirection(DcMotor.Direction.REVERSE);
+        frontRight.setDirection(DcMotor.Direction.FORWARD);
+        backRight.setDirection(DcMotor.Direction.FORWARD);
+
         telemetry.addData("Status", "Initialized");
     }
 
     @Override
     public void loop() {
 
+        double max;
+
         // Mecanum drive is controlled with three axes: drive (front-and-back),
         // strafe (left-and-right), and twist (rotating the whole chassis).
-        double drive  = gamepad1.left_stick_y;
-        double strafe = gamepad1.left_stick_x;
-        double twist  = gamepad1.right_stick_x;
+        double axial   = gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
+        double lateral =  gamepad1.left_stick_x;
+        double yaw     =  gamepad1.right_stick_x;
         boolean conveyorOn = gamepad1.a;
         boolean outakeOn = gamepad1.b;
 
@@ -72,36 +80,53 @@ public class main extends OpMode {
          * https://en.wikipedia.org/wiki/Rotation_(mathematics)#Two_dimensions
          */
 
-        // You may need to multiply some of these by -1 to invert direction of
-        // the motor.  This is not an issue with the calculations themselves.
-        double[] speeds = {
-            (drive + strafe + twist),
-            (drive - strafe - twist),
-            (drive - strafe + twist),
-            (drive + strafe - twist)
-        };
+        // Combine the joystick requests for each axis-motion to determine each wheel's power.
+        // Set up a variable for each drive wheel to save the power level for telemetry.
+        double frontLeftPower  = axial + lateral + yaw;
+        double frontRightPower = axial - lateral - yaw;
+        double backLeftPower   = axial - lateral + yaw;
+        double backRightPower  = axial + lateral - yaw;
 
-        // Because we are adding vectors and motors only take values between
-        // [-1,1] we may need to normalize them.
+        // Normalize the values so no wheel power exceeds 100%
+        // This ensures that the robot maintains the desired motion.
+        max = Math.max(Math.abs(frontLeftPower), Math.abs(frontRightPower));
+        max = Math.max(max, Math.abs(backLeftPower));
+        max = Math.max(max, Math.abs(backRightPower));
 
-        // Loop through all values in the speeds[] array and find the greatest
-        // *magnitude*.  Not the greatest velocity.
-        double max = Math.abs(speeds[0]);
-        for(int i = 0; i < speeds.length; i++) {
-            if ( max < Math.abs(speeds[i]) ) max = Math.abs(speeds[i]);
+        if (max > 1.0) {
+            frontLeftPower  /= max;
+            frontRightPower /= max;
+            backLeftPower   /= max;
+            backRightPower  /= max;
         }
 
-        // If and only if the maximum is outside of the range we want it to be,
-        // normalize all the other speeds based on the given speed value.
-        if (max > 1) {
-            for (int i = 0; i < speeds.length; i++) speeds[i] /= max;
-        }
+        // This is test code:
+        //
+        // Uncomment the following code to test your motor directions.
+        // Each button should make the corresponding motor run FORWARD.
+        //   1) First get all the motors to take to correct positions on the robot
+        //      by adjusting your Robot Configuration if necessary.
+        //   2) Then make sure they run in the correct direction by modifying the
+        //      the setDirection() calls above.
+        // Once the correct motors move in the correct direction re-comment this code.
 
-        // apply the calculated values to the motors.
-        front_left.setPower(speeds[0]);
-        front_right.setPower(speeds[1]);
-        back_left.setPower(speeds[2]);
-        back_right.setPower(speeds[3]);
+        /*
+        frontLeftPower  = gamepad1.x ? 1.0 : 0.0;  // X gamepad
+        backLeftPower   = gamepad1.a ? 1.0 : 0.0;  // A gamepad
+        frontRightPower = gamepad1.y ? 1.0 : 0.0;  // Y gamepad
+        backRightPower  = gamepad1.b ? 1.0 : 0.0;  // B gamepad
+        */
+
+        // Send calculated power to wheels
+        frontLeft.setPower(frontLeftPower);
+        frontRight.setPower(frontRightPower);
+        backLeft.setPower(backLeftPower);
+        backRight.setPower(backRightPower);
+
+        // Show the elapsed game time and wheel power.
+        telemetry.addData("Front left/Right", "%4.2f, %4.2f", frontLeftPower, frontRightPower);
+        telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
+        telemetry.update();
 
         // Conveyor control
         if (conveyorOn) {
