@@ -1,0 +1,67 @@
+# FTC Java Project .gitignore
+
+# Gradle files
+.gradle/
+build/
+local.properties
+*.iml
+.gradle
+gradlew
+gradlew.bat
+
+# Android Studio / IntelliJ
+.idea/
+*.iws
+*.ipr
+out/
+.DS_Store
+
+# Built application files
+**/build/
+**/bin/
+**/obj/
+
+# FTC Specific
+# TeamCode build artifacts
+TeamCode/build/
+TeamCode/src/main/gen/
+
+# FtcRobotController build artifacts
+FtcRobotController/build/
+FtcRobotController/src/main/gen/
+
+# RobotCore and other SDK modules (if cloned locally)
+RobotCore/
+Blocks/
+doc/
+Hardware/
+Inspection/
+OnBotJava/
+Tools/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# Local configuration files
+/local.properties
+/captures/
+.externalNativeBuild
+
+# Gradle wrapper (if you don't commit it)
+/gradle/wrapper/gradle-wrapper.jar
+/gradle/wrapper/gradle-wrapper.properties
+
+# Keystore files (never commit signing keys)
+/*.keystore
+/*.jks
+
+# OP Mode export files (optional, if you export .apk or .aar)
+/*.apk
+/*.aar
+
+# VS Code (if used instead of Android Studio)
+/.vscode/
