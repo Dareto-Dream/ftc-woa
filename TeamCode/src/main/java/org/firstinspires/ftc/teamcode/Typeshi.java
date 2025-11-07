@@ -22,8 +22,9 @@ public class Typeshi extends OpMode {
     // declare and initialize four DcMotors.
     private DcMotor backRight, backLeft, frontRight, frontLeft = null;
     //
-    private DcMotor conveyor   = null;
+    private DcMotor intake      = null;
     private DcMotor outtake     = null;
+    private DcMotor outtake2    = null;
 
     @Override
     public void init() {
@@ -35,8 +36,9 @@ public class Typeshi extends OpMode {
         backLeft   = hardwareMap.get(DcMotor.class, "backLeft");
         backRight  = hardwareMap.get(DcMotor.class, "backRight");
         
-        conveyor     = hardwareMap.get(DcMotor.class, "conveyor");
-        outtake       = hardwareMap.get(DcMotor.class, "outtake");
+        intake     = hardwareMap.get(DcMotor.class, "intake");
+        outtake    = hardwareMap.get(DcMotor.class, "outtake");
+        outtake2   = hardwareMap.get(DcMotor.class, "outtake2");
 
         frontLeft.setDirection(DcMotor.Direction.REVERSE);
         backLeft.setDirection(DcMotor.Direction.REVERSE);
@@ -56,7 +58,7 @@ public class Typeshi extends OpMode {
         double axial   = gamepad1.left_stick_y;  // Note: pushing stick forward gives negative value
         double lateral =  gamepad1.left_stick_x;
         double yaw     =  gamepad1.right_stick_x;
-        boolean conveyorOn = gamepad1.a;
+        boolean intakeOn = gamepad1.a;
         boolean outtakeOn = gamepad1.b;
 
         /*
@@ -128,18 +130,20 @@ public class Typeshi extends OpMode {
         telemetry.addData("Back  left/Right", "%4.2f, %4.2f", backLeftPower, backRightPower);
         telemetry.update();
 
-        // Conveyor control
-        if (conveyorOn) {
-            conveyor.setPower(1.0);
+        // intake control
+        if (intakeOn) {
+            intake.setPower(1.0);
         } else {
-            conveyor.setPower(0.0);
+            intake.setPower(0.0);
         }
 
         // outtake control
         if (outtakeOn) {
             outtake.setPower(1.0);
+            outtake2.setPower(0.99);
         } else {
             outtake.setPower(0.0);
+            outtake2.setPower(0.0);
         }
 
     }
