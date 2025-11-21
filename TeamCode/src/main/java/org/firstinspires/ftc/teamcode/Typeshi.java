@@ -139,8 +139,8 @@ public class Typeshi extends OpMode {
 
         // outtake control
         if (outtakeOn) {
-            outtake.setPower(1.0);
-            outtake2.setPower(0.99);
+            outtake.setPower(-1.0);
+            outtake2.setPower(-0.99);
         } else {
             outtake.setPower(0.0);
             outtake2.setPower(0.0);
