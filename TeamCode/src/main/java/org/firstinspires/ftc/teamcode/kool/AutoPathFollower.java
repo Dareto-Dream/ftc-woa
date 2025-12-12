@@ -122,8 +122,10 @@ public class AutoPathFollower extends LinearOpMode {
 
     private void loadJSONFiles() {
         try {
-            // Load functions.json from assets
-            InputStream functionsStream = hardwareMap.appContext.getAssets().open("functions.json");
+            // Load functions.json from res/raw directory
+            int functionsId = hardwareMap.appContext.getResources().getIdentifier(
+                    "functions", "raw", hardwareMap.appContext.getPackageName());
+            InputStream functionsStream = hardwareMap.appContext.getResources().openRawResource(functionsId);
             BufferedReader funcReader = new BufferedReader(new InputStreamReader(functionsStream));
             StringBuilder funcBuilder = new StringBuilder();
             String line;
@@ -133,8 +135,10 @@ public class AutoPathFollower extends LinearOpMode {
             funcReader.close();
             functionsData = new JSONObject(funcBuilder.toString());
 
-            // Load path.json from assets
-            InputStream pathStream = hardwareMap.appContext.getAssets().open("path.json");
+            // Load path.json from res/raw directory
+            int pathId = hardwareMap.appContext.getResources().getIdentifier(
+                    "path", "raw", hardwareMap.appContext.getPackageName());
+            InputStream pathStream = hardwareMap.appContext.getResources().openRawResource(pathId);
             BufferedReader pathReader = new BufferedReader(new InputStreamReader(pathStream));
             StringBuilder pathBuilder = new StringBuilder();
             while ((line = pathReader.readLine()) != null) {
@@ -147,7 +151,8 @@ public class AutoPathFollower extends LinearOpMode {
 
         } catch (Exception e) {
             telemetry.addData("Error", "Failed to load JSON files: " + e.getMessage());
-            telemetry.addData("Make sure", "JSON files are in TeamCode/src/main/assets/");
+            telemetry.addData("Make sure", "JSON files are in TeamCode/src/main/res/raw/");
+            telemetry.addData("Note", "Files should be named functions.json and path.json");
             telemetry.update();
         }
     }
