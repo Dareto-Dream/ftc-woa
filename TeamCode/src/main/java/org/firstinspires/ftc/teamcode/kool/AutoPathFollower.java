@@ -7,14 +7,6 @@ import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 
-import org.json.JSONObject;
-import org.json.JSONArray;
-
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.IOException;
-
 @Autonomous(name = "Auto Path Follower", group = "Autonomous")
 public class AutoPathFollower extends LinearOpMode {
 
@@ -29,9 +21,7 @@ public class AutoPathFollower extends LinearOpMode {
     private static final double DRIVE_SPEED = 0.6;
     private static final double POSITION_TOLERANCE = 2.0; // inches
 
-    // Path data
-    private JSONObject functionsData;
-    private JSONObject pathData;
+    // Path data - now from AutoData class
     private double currentX, currentY, currentRotation;
     private boolean useEncoders = false;
 
@@ -43,28 +33,19 @@ public class AutoPathFollower extends LinearOpMode {
         // Initialize hardware
         initializeHardware();
 
-        // Load JSON files
-        loadJSONFiles();
-
         // Initialize robot functions
         robotFunctions = new RobotFunctions(hardwareMap, telemetry);
 
-        // Set starting position from JSON
-        try {
-            JSONObject startPos = functionsData.getJSONObject("start_pos");
-            currentX = startPos.getDouble("x");
-            currentY = startPos.getDouble("y");
-            currentRotation = startPos.getDouble("rotation");
+        // Set starting position from AutoData
+        currentX = AutoData.START_POS.x;
+        currentY = AutoData.START_POS.y;
+        currentRotation = AutoData.START_POS.rotation;
 
-            telemetry.addData("Status", "Initialized");
-            telemetry.addData("Starting Position", "X: %.1f, Y: %.1f, Rot: %.1f", currentX, currentY, currentRotation);
-        } catch (Exception e) {
-            telemetry.addData("Error", "Failed to parse starting position: " + e.getMessage());
-            currentX = 0;
-            currentY = 0;
-            currentRotation = 0;
-        }
-
+        telemetry.addData("Status", "Initialized");
+        telemetry.addData("Starting Position", "X: %.1f, Y: %.1f, Rot: %.1f",
+                currentX, currentY, currentRotation);
+        telemetry.addData("Path Points", AutoData.PATH.length);
+        telemetry.addData("Functions", AutoData.FUNCTIONS.length);
         telemetry.addData("Using Encoders", useEncoders);
         telemetry.update();
 
@@ -120,112 +101,63 @@ public class AutoPathFollower extends LinearOpMode {
         imu.resetYaw();
     }
 
-    private void loadJSONFiles() {
-        try {
-            // Load functions.json from res/raw directory
-            int functionsId = hardwareMap.appContext.getResources().getIdentifier(
-                    "functions", "raw", hardwareMap.appContext.getPackageName());
-            InputStream functionsStream = hardwareMap.appContext.getResources().openRawResource(functionsId);
-            BufferedReader funcReader = new BufferedReader(new InputStreamReader(functionsStream));
-            StringBuilder funcBuilder = new StringBuilder();
-            String line;
-            while ((line = funcReader.readLine()) != null) {
-                funcBuilder.append(line);
-            }
-            funcReader.close();
-            functionsData = new JSONObject(funcBuilder.toString());
-
-            // Load path.json from res/raw directory
-            int pathId = hardwareMap.appContext.getResources().getIdentifier(
-                    "path", "raw", hardwareMap.appContext.getPackageName());
-            InputStream pathStream = hardwareMap.appContext.getResources().openRawResource(pathId);
-            BufferedReader pathReader = new BufferedReader(new InputStreamReader(pathStream));
-            StringBuilder pathBuilder = new StringBuilder();
-            while ((line = pathReader.readLine()) != null) {
-                pathBuilder.append(line);
-            }
-            pathReader.close();
-            pathData = new JSONObject(pathBuilder.toString());
-
-            telemetry.addData("JSON Files", "Loaded successfully");
-
-        } catch (Exception e) {
-            telemetry.addData("Error", "Failed to load JSON files: " + e.getMessage());
-            telemetry.addData("Make sure", "JSON files are in TeamCode/src/main/res/raw/");
-            telemetry.addData("Note", "Files should be named functions.json and path.json");
-            telemetry.update();
-        }
-    }
-
     private void executePath() {
-        try {
-            JSONArray path = pathData.getJSONArray("path");
-            JSONArray functions = functionsData.getJSONArray("functions");
+        AutoData.Point[] path = AutoData.PATH;
+        AutoData.FunctionData[] functions = AutoData.FUNCTIONS;
 
-            for (int i = 0; i < path.length(); i++) {
-                if (!opModeIsActive()) break;
+        for (int i = 0; i < path.length; i++) {
+            if (!opModeIsActive()) break;
 
-                JSONObject waypoint = path.getJSONObject(i);
-                double targetX = waypoint.getDouble("x");
-                double targetY = waypoint.getDouble("y");
+            AutoData.Point waypoint = path[i];
+            double targetX = waypoint.x;
+            double targetY = waypoint.y;
 
-                telemetry.addData("Waypoint", "%d of %d", i + 1, path.length());
-                telemetry.addData("Target", "X: %.1f, Y: %.1f", targetX, targetY);
-                telemetry.update();
+            telemetry.addData("Waypoint", "%d of %d", i + 1, path.length);
+            telemetry.addData("Target", "X: %.1f, Y: %.1f", targetX, targetY);
+            telemetry.update();
 
-                // Move to position
-                moveToPosition(targetX, targetY);
-                currentX = targetX;
-                currentY = targetY;
+            // Move to position
+            moveToPosition(targetX, targetY);
+            currentX = targetX;
+            currentY = targetY;
 
-                // Check if there's a function at this position
-                JSONObject functionAtWaypoint = getFunctionAtPosition(functions, targetX, targetY);
+            // Check if there's a function at this position
+            AutoData.FunctionData functionAtWaypoint = getFunctionAtPosition(functions, targetX, targetY);
 
-                if (functionAtWaypoint != null) {
-                    String actionType = functionAtWaypoint.getString("type");
-                    String functionName = functionAtWaypoint.getString("name");
-                    String action = functionAtWaypoint.getString("action");
-                    double targetRotation = functionAtWaypoint.getDouble("rotation");
+            if (functionAtWaypoint != null) {
+                AutoData.FunctionType actionType = functionAtWaypoint.type;
+                String functionName = functionAtWaypoint.name;
+                double targetRotation = functionAtWaypoint.rotation;
 
-                    if (actionType.equals("run_while_moving")) {
-                        // Start function in background thread - robot continues immediately
-                        startFunctionInBackground(functionName);
-                        telemetry.addData("Function", functionName + " started (background)");
-                        telemetry.update();
+                if (actionType == AutoData.FunctionType.RUN_WHILE_MOVING) {
+                    // Start function in background thread - robot continues immediately
+                    startFunctionInBackground(functionName);
+                    telemetry.addData("Function", functionName + " started (background)");
+                    telemetry.update();
 
-                    } else if (actionType.equals("wait_till")) {
-                        // Execute function and wait for completion before continuing
-                        if (action.equals("rotate_only")) {
-                            rotateToAngle(targetRotation);
-                        } else {
-                            executeFunction(functionName);
-                        }
-                    }
+                } else if (actionType == AutoData.FunctionType.WAIT_TILL) {
+                    // Rotate to target angle first
+                    rotateToAngle(targetRotation);
+
+                    // Execute function and wait for completion
+                    executeFunction(functionName);
+                    telemetry.addData("Function", functionName + " completed");
+                    telemetry.update();
                 }
             }
-
-            telemetry.addData("Status", "Path Complete!");
-            telemetry.update();
-
-        } catch (Exception e) {
-            telemetry.addData("Error", "JSON parsing error: " + e.getMessage());
-            telemetry.update();
         }
+
+        telemetry.addData("Status", "Path complete!");
+        telemetry.update();
     }
 
-    private JSONObject getFunctionAtPosition(JSONArray functions, double x, double y) {
-        try {
-            for (int i = 0; i < functions.length(); i++) {
-                JSONObject func = functions.getJSONObject(i);
-                double funcX = func.getDouble("x");
-                double funcY = func.getDouble("y");
-
-                if (Math.abs(funcX - x) < 0.1 && Math.abs(funcY - y) < 0.1) {
-                    return func;
-                }
+    private AutoData.FunctionData getFunctionAtPosition(AutoData.FunctionData[] functions,
+                                                        double targetX, double targetY) {
+        for (AutoData.FunctionData func : functions) {
+            if (Math.abs(func.x - targetX) < POSITION_TOLERANCE &&
+                    Math.abs(func.y - targetY) < POSITION_TOLERANCE) {
+                return func;
             }
-        } catch (Exception e) {
-            telemetry.addData("Error", "Function lookup error: " + e.getMessage());
         }
         return null;
     }

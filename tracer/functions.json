@@ -2,35 +2,27 @@
   "functions": [
     {
       "name": "intake",
-      "x": 36,
-      "y": 84,
-      "rotation": 180,
-      "type": "run_while_moving",
-      "action": "function"
-    },
-    {
-      "name": "intake",
-      "x": 12,
-      "y": 84,
-      "rotation": 270,
+      "x": 104,
+      "y": 60,
+      "rotation": 0,
       "type": "run_while_moving",
       "action": "function"
     },
     {
       "name": "score",
-      "x": 96,
-      "y": 24,
+      "x": 84,
+      "y": 52,
       "rotation": 315,
       "type": "wait_till",
       "action": "function"
     },
     {
-      "name": "rotate",
-      "x": 72,
-      "y": 24,
-      "rotation": 90,
-      "type": "wait_till",
-      "action": "rotate_only"
+      "name": "intake",
+      "x": 104,
+      "y": 84,
+      "rotation": 0,
+      "type": "run_while_moving",
+      "action": "function"
     }
   ],
   "templates": [
@@ -40,8 +32,8 @@
     "park"
   ],
   "start_pos": {
-    "x": 84,
-    "y": 132,
-    "rotation": 315
+    "x": 120,
+    "y": 16,
+    "rotation": 135
   }
 }
