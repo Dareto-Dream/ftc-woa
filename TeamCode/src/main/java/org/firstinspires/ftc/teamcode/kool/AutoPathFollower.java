@@ -15,19 +15,26 @@ public class AutoPathFollower extends LinearOpMode {
     private IMU imu;
 
     // Constants
-    private static final double COUNTS_PER_MOTOR_REV = 145.1;  // PPR at output shaft
-    private static final double WHEEL_DIAMETER_INCHES = 4.0;
-    private static final double COUNTS_PER_INCH = COUNTS_PER_MOTOR_REV / (WHEEL_DIAMETER_INCHES * Math.PI);
+    private static final double COUNTS_PER_MOTOR_REV = 384.5;  // Encoder ticks per output shaft revolution
+    private static final double WHEEL_DIAMETER_INCHES = 4.094;
+    private static final double COUNTS_PER_INCH =
+            COUNTS_PER_MOTOR_REV / (WHEEL_DIAMETER_INCHES * Math.PI);
+
     private static final double DRIVE_SPEED = 0.6;
     private static final double POSITION_TOLERANCE = 2.0; // inches
+    private static final long MOVEMENT_TIMEOUT_MS = 10000; // 10 second timeout
+    private static final long ROTATION_TIMEOUT_MS = 5000; // 5 second timeout
 
     // Path data - now from AutoData class
     private double currentX, currentY, currentRotation;
+    private double startingRotationOffset; // To account for initial robot orientation
     private boolean useEncoders = false;
 
     // Function interfaces - to be implemented by user
     private RobotFunctions robotFunctions;
 
+    // Thread synchronization for telemetry
+    private final Object telemetryLock = new Object();
     @Override
     public void runOpMode() {
         // Initialize hardware
@@ -40,9 +47,10 @@ public class AutoPathFollower extends LinearOpMode {
         currentX = AutoData.START_POS.x;
         currentY = AutoData.START_POS.y;
         currentRotation = AutoData.START_POS.rotation;
+        startingRotationOffset = Math.toRadians(AutoData.START_POS.rotation);
 
         telemetry.addData("Status", "Initialized");
-        telemetry.addData("Starting Position", "X: %.1f, Y: %.1f, Rot: %.1f",
+        telemetry.addData("Starting Position", "X: %.1f, Y: %.1f, Rot: %.1f deg",
                 currentX, currentY, currentRotation);
         telemetry.addData("Path Points", AutoData.PATH.length);
         telemetry.addData("Functions", AutoData.FUNCTIONS.length);
@@ -69,6 +77,12 @@ public class AutoPathFollower extends LinearOpMode {
         frontRight.setDirection(DcMotor.Direction.FORWARD);
         backRight.setDirection(DcMotor.Direction.FORWARD);
 
+        // Set zero power behavior to BRAKE for better precision
+        frontLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeft.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
         // Check if encoders are available
         try {
             frontLeft.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -82,6 +96,7 @@ public class AutoPathFollower extends LinearOpMode {
             backRight.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
             useEncoders = true;
+            telemetry.addData("Encoders", "Available and active");
         } catch (Exception e) {
             telemetry.addData("Warning", "Encoders not available, using time-based movement");
             useEncoders = false;
@@ -99,6 +114,9 @@ public class AutoPathFollower extends LinearOpMode {
                 RevHubOrientationOnRobot.UsbFacingDirection.FORWARD));
         imu.initialize(parameters);
         imu.resetYaw();
+
+        telemetry.addData("IMU", "Initialized (yaw reset to 0)");
+        telemetry.addData("Note", "Robot should be facing field 0 deg or set START_POS.rotation accordingly");
     }
 
     private void executePath() {
@@ -112,9 +130,11 @@ public class AutoPathFollower extends LinearOpMode {
             double targetX = waypoint.x;
             double targetY = waypoint.y;
 
-            telemetry.addData("Waypoint", "%d of %d", i + 1, path.length);
-            telemetry.addData("Target", "X: %.1f, Y: %.1f", targetX, targetY);
-            telemetry.update();
+            synchronized (telemetryLock) {
+                telemetry.addData("Waypoint", "%d of %d", i + 1, path.length);
+                telemetry.addData("Target", "X: %.1f, Y: %.1f", targetX, targetY);
+                telemetry.update();
+            }
 
             // Move to position
             moveToPosition(targetX, targetY);
@@ -132,8 +152,10 @@ public class AutoPathFollower extends LinearOpMode {
                 if (actionType == AutoData.FunctionType.RUN_WHILE_MOVING) {
                     // Start function in background thread - robot continues immediately
                     startFunctionInBackground(functionName);
-                    telemetry.addData("Function", functionName + " started (background)");
-                    telemetry.update();
+                    synchronized (telemetryLock) {
+                        telemetry.addData("Function", functionName + " started (background)");
+                        telemetry.update();
+                    }
 
                 } else if (actionType == AutoData.FunctionType.WAIT_TILL) {
                     // Rotate to target angle first
@@ -141,14 +163,18 @@ public class AutoPathFollower extends LinearOpMode {
 
                     // Execute function and wait for completion
                     executeFunction(functionName);
-                    telemetry.addData("Function", functionName + " completed");
-                    telemetry.update();
+                    synchronized (telemetryLock) {
+                        telemetry.addData("Function", functionName + " completed");
+                        telemetry.update();
+                    }
                 }
             }
         }
 
-        telemetry.addData("Status", "Path complete!");
-        telemetry.update();
+        synchronized (telemetryLock) {
+            telemetry.addData("Status", "Path complete!");
+            telemetry.update();
+        }
     }
 
     private AutoData.FunctionData getFunctionAtPosition(AutoData.FunctionData[] functions,
@@ -179,8 +205,8 @@ public class AutoPathFollower extends LinearOpMode {
     }
 
     private void moveWithEncoders(double deltaX, double deltaY, double distance) {
-        // Get robot heading from IMU
-        double robotHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        // Get robot heading from IMU (accounting for starting offset)
+        double robotHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) + startingRotationOffset;
 
         // Convert field-centric to robot-centric
         double fieldAngle = Math.atan2(deltaY, deltaX);
@@ -233,12 +259,27 @@ public class AutoPathFollower extends LinearOpMode {
         backLeft.setPower(Math.abs(DRIVE_SPEED * backLeftPower));
         backRight.setPower(Math.abs(DRIVE_SPEED * backRightPower));
 
-        // Wait until motors reach target
+        // Wait until motors reach target (with timeout)
+        long startTime = System.currentTimeMillis();
         while (opModeIsActive() &&
                 (frontLeft.isBusy() || frontRight.isBusy() || backLeft.isBusy() || backRight.isBusy())) {
-            telemetry.addData("Distance Remaining", "%.2f inches",
-                    distance - (getAverageEncoderPosition() - getAverageStartPosition(startFL, startFR, startBL, startBR)) / COUNTS_PER_INCH);
-            telemetry.update();
+
+            // Check for timeout
+            if (System.currentTimeMillis() - startTime > MOVEMENT_TIMEOUT_MS) {
+                synchronized (telemetryLock) {
+                    telemetry.addData("Warning", "Movement timeout reached");
+                    telemetry.update();
+                }
+                break;
+            }
+
+            synchronized (telemetryLock) {
+                double avgCurrent = getAverageEncoderPosition();
+                double avgStart = getAverageStartPosition(startFL, startFR, startBL, startBR);
+                double traveled = (avgCurrent - avgStart) / COUNTS_PER_INCH;
+                telemetry.addData("Distance Remaining", "%.2f inches", distance - traveled);
+                telemetry.update();
+            }
         }
 
         // Stop motors
@@ -252,8 +293,8 @@ public class AutoPathFollower extends LinearOpMode {
     }
 
     private void moveWithTime(double deltaX, double deltaY, double distance) {
-        // Get robot heading from IMU
-        double robotHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        // Get robot heading from IMU (accounting for starting offset)
+        double robotHeading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) + startingRotationOffset;
 
         // Convert field-centric to robot-centric
         double fieldAngle = Math.atan2(deltaY, deltaX);
@@ -279,8 +320,10 @@ public class AutoPathFollower extends LinearOpMode {
             backRightPower /= maxPower;
         }
 
-        // Estimate time based on distance (rough calibration needed)
-        double estimatedTime = (distance / 12.0) * 1000; // Rough estimate: 1 second per foot
+        // Estimate time based on distance
+        // This needs calibration for your specific robot!
+        // Current estimate assumes ~12 inches per second at DRIVE_SPEED=0.6
+        double estimatedTime = (distance / 12.0) * 1000; // milliseconds
 
         // Set motor powers
         frontLeft.setPower(DRIVE_SPEED * frontLeftPower);
@@ -295,12 +338,23 @@ public class AutoPathFollower extends LinearOpMode {
 
     private void rotateToAngle(double targetAngleDegrees) {
         double targetAngleRadians = Math.toRadians(targetAngleDegrees);
-        double currentAngle = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+        double currentAngle = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) + startingRotationOffset;
         double angleDiff = normalizeAngle(targetAngleRadians - currentAngle);
 
         double rotationPower = 0.3;
+        long startTime = System.currentTimeMillis();
 
         while (opModeIsActive() && Math.abs(angleDiff) > Math.toRadians(2)) {
+
+            // Check for timeout
+            if (System.currentTimeMillis() - startTime > ROTATION_TIMEOUT_MS) {
+                synchronized (telemetryLock) {
+                    telemetry.addData("Warning", "Rotation timeout reached");
+                    telemetry.update();
+                }
+                break;
+            }
+
             double power = Math.signum(angleDiff) * rotationPower;
 
             frontLeft.setPower(-power);
@@ -308,12 +362,14 @@ public class AutoPathFollower extends LinearOpMode {
             backLeft.setPower(-power);
             backRight.setPower(power);
 
-            currentAngle = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS);
+            currentAngle = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.RADIANS) + startingRotationOffset;
             angleDiff = normalizeAngle(targetAngleRadians - currentAngle);
 
-            telemetry.addData("Rotating", "Target: %.1f°, Current: %.1f°",
-                    Math.toDegrees(targetAngleRadians), Math.toDegrees(currentAngle));
-            telemetry.update();
+            synchronized (telemetryLock) {
+                telemetry.addData("Rotating", "Target: %.1f deg, Current: %.1f deg",
+                        Math.toDegrees(targetAngleRadians), Math.toDegrees(currentAngle));
+                telemetry.update();
+            }
         }
 
         stopMotors();
@@ -341,24 +397,31 @@ public class AutoPathFollower extends LinearOpMode {
     }
 
     private double getAverageStartPosition(int startFL, int startFR, int startBL, int startBR) {
-        return (Math.abs(startFL) + Math.abs(startFR) + Math.abs(startBL) + Math.abs(startBR)) / 4.0;
+        // FIXED: Removed Math.abs() to correctly calculate average start position
+        return (startFL + startFR + startBL + startBR) / 4.0;
     }
 
     // Function execution methods - delegated to RobotFunctions class
     private void startFunctionInBackground(String functionName) {
         // Run function in separate thread so robot can continue moving
         new Thread(() -> {
-            telemetry.addData("Background Function", functionName + " starting");
-            telemetry.update();
+            synchronized (telemetryLock) {
+                telemetry.addData("Background Function", functionName + " starting");
+                telemetry.update();
+            }
             robotFunctions.executeFunction(functionName);
-            telemetry.addData("Background Function", functionName + " completed");
-            telemetry.update();
+            synchronized (telemetryLock) {
+                telemetry.addData("Background Function", functionName + " completed");
+                telemetry.update();
+            }
         }).start();
     }
 
     private void executeFunction(String functionName) {
-        telemetry.addData("Executing Function", functionName);
-        telemetry.update();
+        synchronized (telemetryLock) {
+            telemetry.addData("Executing Function", functionName);
+            telemetry.update();
+        }
         robotFunctions.executeFunction(functionName);
     }
 }

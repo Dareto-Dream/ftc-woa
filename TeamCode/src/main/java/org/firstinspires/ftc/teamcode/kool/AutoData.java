@@ -4,44 +4,28 @@ public class AutoData {
 
     // Path points
     public static final Point[] PATH = {
-            new Point(120, 16),
-            new Point(84, 52),
-            new Point(84, 60),
-            new Point(104, 60),
-            new Point(120, 60),
-            new Point(104, 60),
-            new Point(84, 60),
-            new Point(84, 52),
-            new Point(96, 84),
-            new Point(104, 84),
-            new Point(120, 84),
-            new Point(104, 84),
-            new Point(96, 84),
-            new Point(84, 52),
-            new Point(92, 108)
+            new Point(84, 132),
+            new Point(84, 120),
+            new Point(84, 108),
+            new Point(104, 108),
+            new Point(132, 108),
+            new Point(104, 120),
+            new Point(84, 120)
     };
 
     // Start position
     public static final Position START_POS = new Position(
-            120,
-            16,
-            135
+            84,
+            132,
+            315
     );
 
     // Functions
     public static final FunctionData[] FUNCTIONS = {
             new FunctionData(
-                    "intake",
-                    104,
-                    60,
-                    0,
-                    FunctionType.RUN_WHILE_MOVING,
-                    ActionType.FUNCTION
-            ),
-            new FunctionData(
                     "score",
                     84,
-                    52,
+                    120,
                     315,
                     FunctionType.WAIT_TILL,
                     ActionType.FUNCTION
@@ -49,7 +33,15 @@ public class AutoData {
             new FunctionData(
                     "intake",
                     104,
-                    84,
+                    108,
+                    0,
+                    FunctionType.RUN_WHILE_MOVING,
+                    ActionType.FUNCTION
+            ),
+            new FunctionData(
+                    "intake",
+                    132,
+                    108,
                     0,
                     FunctionType.RUN_WHILE_MOVING,
                     ActionType.FUNCTION
